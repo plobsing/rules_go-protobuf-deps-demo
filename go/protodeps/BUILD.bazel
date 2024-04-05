@@ -1,0 +1,41 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+sh_binary(
+    name = "update",
+    srcs = ["update.sh"],
+    data = [
+        ":blank_import",
+        ":list_imports",
+    ],
+    deps = ["@bazel_tools//tools/bash/runfiles"],
+)
+
+go_binary(
+    name = "list_imports",
+    srcs = ["list_imports.go"],
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "blank_import",
+    srcs = ["blank_import.go"],
+    visibility = ["//visibility:private"],
+)
+
+go_library(
+    name = "protodeps",
+    srcs = [
+        "doc.go",
+        "protodeps.go",
+    ],
+    importpath = "github.com/example/project/go/protodeps",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@org_golang_google_genproto_googleapis_api//annotations",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

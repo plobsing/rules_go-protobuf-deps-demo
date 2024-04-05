@@ -1,4 +1,15 @@
 #!/usr/bin/env bash
+#
+# Pin external dependencies using the Go module system's lockfiles.
+#
+# //go:go.mod and //go:go.sum are updated to reflect the current external dependencies of the Go source tree under //go.
+# These go module lockfile are mapped into Bazel via Gazelle and
+#
+# Special attention is paid to the tree of generated Go sources under //proto.
+# It is adapted so that Go tooling does not complain about its absence.
+# In addition, its dependencies are ensured by mirroring them to the //go/protodeps package.
+#
+# The Go module lockfile are mapped into Bazel via Gazelle's Bzlmod API in //:MODULE.bazel.
 
 set -euo pipefail
 
@@ -62,22 +73,19 @@ function proto_gen_go_symtree() {
 		done
 }
 
+# Set up just enough of a module for our protos that tools acting against the Go source tree will cope with our generated sources.
 proto_scratch_dir="${scratch_dir}/proto"
 proto_gen_go_symtree "${proto_scratch_dir}"
-
-# Use symlinks to map //proto:go.* lockfiles into the generated code tree.
-# These symlinks will be written through by `go mod tidy` and `go work sync`,
-# updating the lockfiles in the source tree.
-ln -s "${srctree_root}/proto/go.mod" "${proto_scratch_dir}/go.mod"
-ln -s "${srctree_root}/proto/go.sum" "${proto_scratch_dir}/go.sum"
 (
 	cd "${proto_scratch_dir}"
-	go mod tidy
+	go mod init "github.com/example/project/proto"
 )
 
-# Shim the local, ephemeral github.com/example/project/proto module into the github.com/example/project/go module and tidy the latter.
-# These will be wired together in a workspace, but workspaces and module
-# maintenance do not interact conveniently (https://github.com/golang/go/issues/50750).
+# Ensure the mirroring of protobuf gencode deps into our Go source tree is kept up to date.
+# This mirroring is necessary to ensure that generated code dependencies are available through Bazel.
+bazel run //go/protodeps:update
+
+# Shim the local, ephemeral github.com/example/project/proto module into the github.com/example/project/go module before tidying the latter.
 (
 	cd "${srctree_root}/go"
 	go mod edit --replace github.com/example/project/proto="${proto_scratch_dir}"
@@ -85,25 +93,5 @@ ln -s "${srctree_root}/proto/go.sum" "${proto_scratch_dir}/go.sum"
 	go mod tidy
 )
 
-# Create an ephemeral go workspace and use it to drive `gazelle update-repos`.
-scratch_go_workspace="${scratch_dir}/workspace"
-mkdir "${scratch_go_workspace}"
-(
-	cd "${scratch_go_workspace}"
-
-	go work init \
-		"${srctree_root}/go" \
-		"${proto_scratch_dir}"
-
-	# Note: `go work sync` only harmonizes dependency versions between a
-	# workspace's modules, it does not tidy the individual modules. That must be
-	# performed separately (as is done above).
-	# See https://github.com/golang/go/issues/50750.
-	go work sync
-)
-
-bazel run //:gazelle -- \
-        update-repos \
-        --from_file="${scratch_go_workspace}/go.work" \
-        --prune \
-        --to_macro="go/repositories.bzl%go_dependencies"
+# Tidy MODULE.bazel in order to update our `use_repo` of Gazelle's `go_deps` extension to the latest set of imported libraries.
+bazel mod tidy
