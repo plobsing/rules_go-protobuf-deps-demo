@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package my_protos;
+
+import "google/api/annotations.proto";
+
+message ExampleRequest {}
+message ExampleResponse {}
+
+service Example {
+    rpc Command(ExampleRequest) returns (ExampleResponse) {
+        // Some annotation we aren't interested in for our Go-based client (and so don't show up in our Go code).
+        // Beyond HTTP-mapping, could also be validation-related, auth-related, etc.
+        option (google.api.http) = {
+          post: "/v1/command"
+          body: "*"
+        };
+    }
+}

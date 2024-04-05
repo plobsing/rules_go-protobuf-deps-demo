@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//proto:def.bzl", "go_proto_library")
+load("@rules_proto//proto:defs.bzl", "proto_library")
+
+# gazelle:proto   package
+# gazelle:resolve proto proto google/api/annotations.proto @googleapis//google/api:annotations_proto
+# gazelle:resolve proto go    google/api/annotations.proto @org_golang_google_genproto_googleapis_api//annotations
+
+proto_library(
+    name = "service_proto",
+    srcs = ["service.proto"],
+    visibility = ["//visibility:public"],
+    deps = ["@googleapis//google/api:annotations_proto"],
+)
+
+go_proto_library(
+    name = "service_go_proto",
+    compilers = ["@io_bazel_rules_go//proto:go_grpc"],
+    importpath = "github.com/example/project/proto",
+    proto = ":service_proto",
+    visibility = ["//visibility:public"],
+    deps = ["@org_golang_google_genproto_googleapis_api//annotations"],
+)
